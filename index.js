@@ -464,8 +464,7 @@ app.post(
       };
       const bookingResult = await bookingsCollection.insertOne(bookingDoc);
 
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
+    const session = await stripe.checkout.sessions.create({
         line_items: [
           {
             price_data: {
