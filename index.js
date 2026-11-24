@@ -428,57 +428,64 @@ app.post(
   verifyToken,
   verifyRenter,
   async (req, res) => {
-    const {
-      equipmentId,
-      equipmentName,
-      ownerEmail,
-      startDate,
-      endDate,
-      quantity,
-      totalAmount,
-      contactNumber,
-      deliveryAddress,
-      notes,
-    } = req.body;
+    try {
+      const {
+        equipmentId,
+        equipmentName,
+        ownerEmail,
+        startDate,
+        endDate,
+        quantity,
+        totalAmount,
+        contactNumber,
+        deliveryAddress,
+        notes,
+      } = req.body;
 
-    // Create Pending Booking
-    const bookingDoc = {
-      equipmentId,
-      equipmentName,
-      ownerEmail,
-      customerEmail: req.user.email,
-      customerName: req.dbUser.name,
-      startDate,
-      endDate,
-      quantity: Number(quantity),
-      totalAmount: Number(totalAmount),
-      contactNumber,
-      deliveryAddress,
-      notes,
-      paymentStatus: "Pending",
-      bookingStatus: "Pending",
-      bookingDate: new Date(),
-    };
-    const bookingResult = await bookingsCollection.insertOne(bookingDoc);
+      const clientUrl = (process.env.CLIENT_URL || "https://rentgear-client.vercel.app").trim().replace(/\/$/, "");
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: { name: `${equipmentName} (Qty: ${quantity})` },
-            unit_amount: Math.round(Number(totalAmount) * 100),
+      // Create Pending Booking
+      const bookingDoc = {
+        equipmentId,
+        equipmentName,
+        ownerEmail,
+        customerEmail: req.user.email,
+        customerName: req.dbUser.name,
+        startDate,
+        endDate,
+        quantity: Number(quantity),
+        totalAmount: Number(totalAmount),
+        contactNumber,
+        deliveryAddress,
+        notes,
+        paymentStatus: "Pending",
+        bookingStatus: "Pending",
+        bookingDate: new Date(),
+      };
+      const bookingResult = await bookingsCollection.insertOne(bookingDoc);
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: { name: `${equipmentName} (Qty: ${quantity})` },
+              unit_amount: Math.round(Number(totalAmount) * 100),
+            },
+            quantity: 1,
           },
-          quantity: 1,
-        },
-      ],
-      mode: "payment",
-      success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingResult.insertedId}`,
-      cancel_url: `${process.env.CLIENT_URL}/equipment/${equipmentId}`,
-    });
+        ],
+        mode: "payment",
+        success_url: `${clientUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingResult.insertedId}`,
+        cancel_url: `${clientUrl}/equipment/${equipmentId}`,
+      });
 
-    res.send({ url: session.url, bookingId: bookingResult.insertedId });
+      res.send({ url: session.url, bookingId: bookingResult.insertedId });
+    } catch (err) {
+      console.error("Stripe Checkout Error:", err);
+      res.status(400).send({ message: err.message || "Stripe checkout failed" });
+    }
   },
 );
 
